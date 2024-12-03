@@ -5,6 +5,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { SSRPass } from "three/addons/postprocessing/SSRPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
 const App = () => {
   const mountRef = useRef(null);
 
@@ -34,6 +38,30 @@ const App = () => {
 
     const light = new THREE.AmbientLight(0xffffff, 5);
     scene.add(light);
+
+    const params = {
+      enableSSR: true,
+      autoRotate: true,
+      otherMeshes: true,
+      groundReflector: true,
+    };
+
+    let composer;
+    let ssrPass;
+
+    // composer
+
+    composer = new EffectComposer(renderer);
+    ssrPass = new SSRPass({
+      renderer,
+      scene,
+      camera,
+      width: innerWidth,
+      height: innerHeight,
+    });
+
+    composer.addPass(ssrPass);
+    composer.addPass(new OutputPass());
 
     const loader = new GLTFLoader();
     loader.load("/models/saperated_copy.glb", (gltf) => {
@@ -75,8 +103,8 @@ const App = () => {
         ) {
           console.log(object.name);
           object.material = material;
-          object.renderOrder = index;
-          index--;
+          // object.renderOrder = index;
+          // index--;
         }
       });
     });
@@ -91,7 +119,8 @@ const App = () => {
 
     const animate = () => {
       requestAnimationFrame(animate);
-      renderer.render(scene, camera);
+      //renderer.render(scene, camera);
+      composer.render();
       controls.update();
     };
     animate();
