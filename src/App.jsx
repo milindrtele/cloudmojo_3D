@@ -39,6 +39,16 @@ const App = () => {
     const light = new THREE.AmbientLight(0xffffff, 5);
     scene.add(light);
 
+    // Create cube render target
+    const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(128, {
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+    });
+
+    // Create cube camera
+    const cubeCamera = new THREE.CubeCamera(1, 100000, cubeRenderTarget);
+    scene.add(cubeCamera);
+
     const params = {
       enableSSR: true,
       autoRotate: true,
@@ -64,7 +74,7 @@ const App = () => {
     composer.addPass(new OutputPass());
 
     const loader = new GLTFLoader();
-    loader.load("/models/saperated_copy.glb", (gltf) => {
+    loader.load("/models/material_saperated.glb", (gltf) => {
       scene.add(gltf.scene);
       console.log(gltf.scene);
       // const dragon = gltf.scene.getObjectByName("Dragon");
@@ -81,32 +91,59 @@ const App = () => {
       // dragon.material.specularIntensity = 1;
       // dragon.material.side = THREE.DoubleSide;
 
-      const material = new THREE.MeshPhysicalMaterial();
-      material.color.set(0.192, 0.592, 1);
-      material.transmission = 1;
-      material.opacity = 0;
-      material.metalness = 0.2;
-      material.roughness = 0.3;
-      material.ior = 1.75;
-      material.thickness = 5;
-      material.attenuationDistance = 0.155;
-      material.specularIntensity = 0.2;
-      material.side = THREE.DoubleSide;
-      material.depthWrite = false;
+      const light_material = new THREE.MeshPhysicalMaterial();
+      light_material.color.set(0.62, 0.741, 1);
+      light_material.transmission = 0.8;
+      //material.opacity = 0;
+      light_material.metalness = 0.5;
+      light_material.roughness = 0.25;
+      light_material.ior = 1.75;
+      light_material.thickness = 5;
+      light_material.attenuationDistance = 0.155;
+      light_material.specularIntensity = 0.2;
+      light_material.side = THREE.DoubleSide;
+      // light_material.depthWrite = false;
+      light_material.envMap = cubeRenderTarget.texture;
+      light_material.envMapIntensity = 0.5;
 
-      let index = 100;
-      gltf.scene.children.forEach((object) => {
-        if (
-          object.isMesh &&
-          object.name != "Cloth_Backdrop001" &&
-          object.name != "box"
-        ) {
-          console.log(object.name);
-          object.material = material;
-          // object.renderOrder = index;
-          // index--;
+      const dark_material = new THREE.MeshPhysicalMaterial();
+      dark_material.color.set(0, 0.31, 1);
+      dark_material.transmission = 0.8;
+      //dark_material.opacity = 0;
+      dark_material.metalness = 0.5;
+      dark_material.roughness = 0.25;
+      dark_material.ior = 1.75;
+       dark_material.thickness = 5;
+       dark_material.attenuationDistance = 0.155;
+      dark_material.specularIntensity = 0.2;
+      dark_material.side = THREE.DoubleSide;
+      // dark_material.depthWrite = false;
+      dark_material.envMap = cubeRenderTarget.texture;
+      dark_material.envMapIntensity = 0.5;
+
+      const light_objects = gltf.scene.getObjectByName("light_material");
+      const dark_objects = gltf.scene.getObjectByName("dark_material");
+
+      light_objects.children.forEach((object)=>{
+        if (object.isMesh) {
+          object.material = light_material;
         }
-      });
+      })
+
+      dark_objects.children.forEach((object)=>{
+        if (object.isMesh) {
+          object.material = dark_material;
+        }
+      })
+
+      // let index = 100;
+      // gltf.scene.children.forEach((object) => {
+      //   if (object.isMesh && object.name != "Cloth_Backdrop001") {
+      //     object.material = material;
+      //     // object.renderOrder = index;
+      //     // index--;
+      //   }
+      // });
     });
 
     const handleResize = () => {
@@ -119,8 +156,8 @@ const App = () => {
 
     const animate = () => {
       requestAnimationFrame(animate);
-      //renderer.render(scene, camera);
-      composer.render();
+      renderer.render(scene, camera);
+      //composer.render();
       controls.update();
     };
     animate();
