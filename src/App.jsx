@@ -18,7 +18,7 @@ const App = () => {
     );
     camera.position.set(0, 4, 8);
 
-    const renderer = new THREE.WebGLRenderer({antialias:true});
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     mountRef.current.appendChild(renderer.domElement);
 
@@ -29,14 +29,19 @@ const App = () => {
       .load("royal_esplanade_1k.hdr", () => {
         hdrEquirect.mapping = THREE.EquirectangularReflectionMapping;
         scene.background = hdrEquirect;
-        scene.environment = hdrEquirect;
+        //scene.environment = hdrEquirect;
       });
 
     // const light = new THREE.AmbientLight(0xffffff, 5);
     // scene.add(light);
 
-    const texture = new THREE.TextureLoader().load('/models/thickness.png' ); 
+    const texture = new THREE.TextureLoader().load("/models/thickness.png");
     texture.flipY = false;
+
+    const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256);
+    cubeRenderTarget.texture.type = THREE.HalfFloatType;
+
+    const cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
 
     // Light Material
     const lightMaterial = new THREE.MeshPhysicalMaterial({
@@ -53,11 +58,13 @@ const App = () => {
       specularColor: new THREE.Color(0xffffff),
       envMapIntensity: 1,
       //side: THREE.DoubleSide,
-      thicknessMap: texture, 
+      thicknessMap: texture,
+      envMap: cubeRenderTarget.texture,
     });
 
     // Dark Material
     const darkMaterial = new THREE.MeshPhysicalMaterial({
+      transparent: false,
       color: 0xffffff,
       transmission: 1,
       opacity: 1,
@@ -70,14 +77,21 @@ const App = () => {
       specularIntensity: 1,
       specularColor: new THREE.Color(0xffffff),
       envMapIntensity: 1,
-      //side: THREE.DoubleSide,
-      thicknessMap: texture, 
+      side: THREE.DoubleSide,
+      thicknessMap: texture,
+      envMap: cubeRenderTarget.texture,
     });
 
     const gltfLoader = new GLTFLoader();
     gltfLoader.load("/models/material_saperated_2.glb", (gltf) => {
+
+      console.log(gltf.scene);
+      
       const lightObjects = gltf.scene.getObjectByName("light_material");
       const darkObjects = gltf.scene.getObjectByName("dark_material");
+
+      const monitor = gltf.scene.getObjectByName("Cube077");
+      cubeCamera.position.copy(monitor.position);
 
       if (lightObjects && lightObjects.children) {
         lightObjects.children.forEach((child) => {
@@ -103,9 +117,12 @@ const App = () => {
 
     // Add common controls function
     const addMaterialControls = (folder, material) => {
-      folder.addColor({ color: `#${material.color.getHexString()}` }, "color").name("Color").onChange((value) => {
-        material.color.set(value);
-      });
+      folder
+        .addColor({ color: `#${material.color.getHexString()}` }, "color")
+        .name("Color")
+        .onChange((value) => {
+          material.color.set(value);
+        });
       folder.add(material, "transmission", 0, 1).name("Transmission");
       folder.add(material, "opacity", 0, 1).name("Opacity");
       folder.add(material, "metalness", 0, 1).name("Metalness");
@@ -113,15 +130,25 @@ const App = () => {
       folder.add(material, "ior", 1, 2.5).name("IOR");
       folder.add(material, "thickness", 0, 5).name("Thickness");
       folder
-        .addColor({ attenuationColor: `#${material.attenuationColor.getHexString()}` }, "attenuationColor")
+        .addColor(
+          { attenuationColor: `#${material.attenuationColor.getHexString()}` },
+          "attenuationColor"
+        )
         .name("Attenuation Color")
         .onChange((value) => {
           material.attenuationColor.set(value);
         });
-      folder.add(material, "attenuationDistance", 0, 5).name("Attenuation Distance");
-      folder.add(material, "specularIntensity", 0, 5).name("Specular Intensity");
       folder
-        .addColor({ specularColor: `#${material.specularColor.getHexString()}` }, "specularColor")
+        .add(material, "attenuationDistance", 0, 5)
+        .name("Attenuation Distance");
+      folder
+        .add(material, "specularIntensity", 0, 5)
+        .name("Specular Intensity");
+      folder
+        .addColor(
+          { specularColor: `#${material.specularColor.getHexString()}` },
+          "specularColor"
+        )
         .name("Specular Color")
         .onChange((value) => {
           material.specularColor.set(value);
@@ -148,6 +175,12 @@ const App = () => {
 
     const animate = () => {
       requestAnimationFrame(animate);
+      
+      // Temporarily disable HDRI for CubeCamera updates
+      scene.environment = null;
+      cubeCamera.update(renderer, scene);
+      scene.environment = hdrEquirect; // Re-enable HDRI
+      
       controls.update();
       renderer.render(scene, camera);
     };
