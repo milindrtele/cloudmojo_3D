@@ -6,9 +6,20 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 import Stats from "three/examples/jsm/libs/stats.module";
 
+import { SSREffect } from "screen-space-reflections"
+import * as POSTPROCESSING from "postprocessing"
+
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { SSRPass } from "three/addons/postprocessing/SSRPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+import { Reflector } from 'three/addons/objects/Reflector.js';
+
+// import { color, pass, reflector, normalWorld, texture, uv, screenUV } from 'three/tsl';
+// import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js';
+
+// import MeshPhongNodeMaterial from 'three/src/materials/nodes/MeshPhongNodeMaterial.js'
+
 
 const App = () => {
   const mountRef = useRef(null);
@@ -78,8 +89,12 @@ const App = () => {
     // light.shadow.radius = 4;
     // light.shadow.bias = -0.0005;
 
-    const texture = new THREE.TextureLoader().load("/models/thickness.png");
-    texture.flipY = false;
+    const thicknessTexture = new THREE.TextureLoader().load("/models/thickness.png");
+    thicknessTexture.flipY = false;
+
+    const envtexture = new THREE.TextureLoader().load("/models/environment maps/untitled.jpg");
+    envtexture.mapping = THREE.EquirectangularReflectionMapping;
+    
 
     cubeRenderTargetRef.current = new THREE.WebGLCubeRenderTarget(256);
     cubeRenderTargetRef.current.texture.type = THREE.HalfFloatType;
@@ -105,7 +120,9 @@ const App = () => {
       specularColor: new THREE.Color(0xffffff),
       envMapIntensity: 1,
       //side: THREE.DoubleSide,
-      thicknessMap: texture,
+      thicknessMap: thicknessTexture,
+      aoMap: thicknessTexture,
+      envMap: envtexture,
       //envMap: cubeRenderTargetRef.current.texture,
     });
 
@@ -123,9 +140,11 @@ const App = () => {
       attenuationDistance: 0.4,
       specularIntensity: 1,
       specularColor: new THREE.Color(0xffffff),
-      envMapIntensity: 1,
+      //envMapIntensity: 1,
       side: THREE.DoubleSide,
-      thicknessMap: texture,
+      thicknessMap: thicknessTexture,
+      aoMap: thicknessTexture,
+      envMap: envtexture,
       //envMap: cubeRenderTargetRef.current.texture,
     });
 
@@ -145,6 +164,67 @@ const App = () => {
       lightObjectsRef.current = gltf.scene.getObjectByName("light_material");
       darkObjectsRef.current = gltf.scene.getObjectByName("dark_material");
 
+      const sphere = gltf.scene.getObjectByName("Sphere");
+      sphere.material.metalness = 1;
+      sphere.material.roughness = 0;
+      sphere.material.envMap = envtexture;
+
+      const plane = gltf.scene.getObjectByName("Plane");
+      //plane.visible = false;
+      console.log(plane);
+      const geometry = new THREE.CircleGeometry( 40, 64 );
+				const groundMirror = new Reflector( geometry, {
+					clipBias: 0.003,
+					textureWidth: window.innerWidth * window.devicePixelRatio,
+					textureHeight: window.innerHeight * window.devicePixelRatio,
+					color: 0xb5b5b5
+				} );
+
+        //groundMirror.material.uniforms.tDiffuse.value = new THREE.TextureLoader().load( 'models/baked.jpg' );;
+
+
+        // // Override the Reflector's material
+        // groundMirror.material = new THREE.MeshStandardMaterial({
+        //   color: 0xff0000,
+        //   roughness: 0.5, // Adjust roughness value
+        //   metalness: 0.9, // Reflectiveness (adjust as needed)
+        // });
+				groundMirror.position.y = 0.1;
+				groundMirror.rotateX( - Math.PI / 2 );
+				scene.add( groundMirror );
+
+        console.log(groundMirror);
+
+      // const floorColor = new THREE.TextureLoader().load( 'models/baked.jpg' );
+			// 	floorColor.wrapS = THREE.RepeatWrapping;
+			// 	floorColor.wrapT = THREE.RepeatWrapping;
+			// 	floorColor.colorSpace = THREE.SRGBColorSpace;
+
+      // const floorNormal = new THREE.TextureLoader().load( 'models/FloorsCheckerboard_S_Normal.jpg' );
+			// 	floorNormal.wrapS = THREE.RepeatWrapping;
+			// 	floorNormal.wrapT = THREE.RepeatWrapping;
+
+			// 	// floor
+
+			// 	const floorUV = uv().mul( 15 );
+			// 	const floorNormalOffset = texture( floorNormal, floorUV ).xy.mul( 2 ).sub( 1 ).mul( .02 );
+
+			// 	const reflection = reflector( { resolution: 0.5 } ); // 0.5 is half of the rendering view
+			// 	reflection.target.rotateX( - Math.PI / 2 );
+			// 	reflection.uvNode = reflection.uvNode.add( floorNormalOffset );
+			// 	scene.add( reflection.target );
+
+      //   const floorMaterial = new MeshPhongNodeMaterial();
+			// 	floorMaterial.colorNode = texture( floorColor, floorUV ).add( reflection );
+
+			// 	const floor = new THREE.Mesh( new THREE.BoxGeometry( 50, .001, 50 ), floorMaterial );
+			// 	floor.receiveShadow = true;
+
+			// 	floor.position.set( 0, 0, 0 );
+			// 	scene.add( floor );
+
+
+
       const monitor = gltf.scene.getObjectByName("Cube077");
       cubeCamera.position.copy(monitor.position);
 
@@ -159,7 +239,7 @@ const App = () => {
       if (darkObjectsRef.current && darkObjectsRef.current.children) {
         darkObjectsRef.current.children.forEach((child) => {
           if (child.isMesh) {
-            child.material = darkMaterialRef.current.clone();
+            child.material = darkMaterialRef.current;
             if(child.name == "Cube097"){
               console.log("found");
               child.material.side = THREE.DoubleSide;
@@ -188,6 +268,14 @@ const App = () => {
     // Initialize GUI
     const gui = new GUI();
 
+    // const composer2 = new POSTPROCESSING.EffectComposer(renderer)
+
+    // const ssrEffect = new SSREffect(scene, camera)
+
+    // const ssrPass2 = new POSTPROCESSING.EffectPass(camera, ssrEffect)
+
+    // composer2.addPass(ssrPass2)
+
     let composer;
     let ssrPass;
 
@@ -200,7 +288,7 @@ const App = () => {
       camera,
       width: innerWidth,
       height: innerHeight,
-      roughnessFade: 1.0, // Adjust for better response to roughness
+      roughnessFade: 10.0, // Adjust for better response to roughness
     });
 
     composer.addPass(ssrPass);
@@ -300,6 +388,7 @@ const App = () => {
       if (paramsRef.current.enableSSR) {
         composer.render();
       } else  {
+        //composer2.render();
         renderer.render(scene, camera);
         // renderer.clearStencil(); // Clear stencil before rendering
         // renderer.clear(); // Clear the canvas
